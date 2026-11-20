@@ -1,0 +1,40 @@
+# Vértice en hosting Apache (alexmar.mx/vertice): tipos correctos y archivos precomprimidos del motor
+AddType application/wasm .wasm
+AddType text/javascript .js .mjs
+AddType application/json .json
+
+<IfModule mod_headers.c>
+  <IfModule mod_rewrite.c>
+    RewriteEngine On
+    # el motor trae versiones .br y .gz de cada archivo: se entregan si el navegador las acepta
+    RewriteCond %{HTTP:Accept-Encoding} br
+    RewriteCond %{REQUEST_FILENAME}.br -f
+    RewriteRule ^(.*)$ $1.br [L]
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}.gz -f
+    RewriteRule ^(.*)$ $1.gz [L]
+  </IfModule>
+  <FilesMatch "\.br$">
+    Header set Content-Encoding br
+    Header append Vary Accept-Encoding
+    SetEnv no-gzip 1
+  </FilesMatch>
+  <FilesMatch "\.gz$">
+    Header set Content-Encoding gzip
+    Header append Vary Accept-Encoding
+    SetEnv no-gzip 1
+  </FilesMatch>
+  <FilesMatch "\.wasm\.(br|gz)$">
+    ForceType application/wasm
+  </FilesMatch>
+  <FilesMatch "\.js\.(br|gz)$">
+    ForceType text/javascript
+  </FilesMatch>
+  <FilesMatch "\.(json|dat)\.(br|gz)$">
+    ForceType application/octet-stream
+  </FilesMatch>
+  # los archivos del motor llevan huella en el nombre: se guardan en caché un año
+  <FilesMatch "\.[a-z0-9]{10}\.(wasm|js|dat)(\.br|\.gz)?$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

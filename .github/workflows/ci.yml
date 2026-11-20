@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dotnet:
+    name: Motor y API (.NET 10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build Vertice.sln -c Release
+      - run: dotnet test tests/Vertice.Core.Tests -c Release --no-build
+      - run: dotnet test tests/Vertice.Api.Tests -c Release --no-build
+
+  web:
+    name: Interfaz + motor WebAssembly (AOT)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet workload install wasm-tools
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run wasm
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+
+  docker:
+    name: Imagen Docker (modo servidor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t vertice .
+      - name: Prueba de humo
+        run: |
+          docker run -d -p 8080:8080 --name vertice vertice
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/api/health && exit 0; sleep 1; done
+          docker logs vertice; exit 1
